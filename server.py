@@ -52,7 +52,8 @@ def predict_from_bytes(bytes):
     result_html1 = path/'static'/'result1.html'
     result_html2 = path/'static'/'result2.html'
     
-    outputstr = "This is a " + str(class_) + " with " + str(float(losses[0])) + "% certainty."
+    outputstr = "This is a %s with %.2f%% certainty." %(class_,100*float(losses[int(predict_)]))
+    #outputstr = "This is a " + str(class_) + " with " + str(float(losses[0])) + "% certainty."
     #result_html = str(result_html1.open().read() + str(predictions[0]) + result_html2.open().read())
     result_html = str(result_html1.open().read() + outputstr + result_html2.open().read())
     return HTMLResponse(result_html)
