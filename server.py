@@ -9,7 +9,7 @@ import base64
 
 model_file_url = 'https://github.com/YiweiMao/pulsar-blackhole-classifier/blob/master/models/stage-2.pth'
 model_file_name = 'stage-2'
-classes = ['pulsar','blackhole']
+classes = ['blackhole','pulsar']
 
 path = Path("")
 
@@ -47,12 +47,14 @@ async def upload(request):
 
 def predict_from_bytes(bytes):
     img = open_image(BytesIO(bytes))
-    _,_,losses = learn.predict(img)
+    class_,predict_,losses = learn.predict(img)
     predictions = sorted(zip(classes, map(float, losses)), key=lambda p: p[1], reverse=True)
     result_html1 = path/'static'/'result1.html'
     result_html2 = path/'static'/'result2.html'
     
-    result_html = str(result_html1.open().read() + str(predictions[0]) + result_html2.open().read())
+    outputstr = "This is a " + str(class_) + " with " + str(predict_) + "% certainty."
+    #result_html = str(result_html1.open().read() + str(predictions[0]) + result_html2.open().read())
+    result_html = str(result_html1.open().read() + outputstr + result_html2.open().read())
     return HTMLResponse(result_html)
 
 @app.route("/")
