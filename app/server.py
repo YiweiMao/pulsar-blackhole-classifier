@@ -1,4 +1,4 @@
-#! usr/bin/env python
+#! usr/bin/env python3
 
 # slightly modified from 
 # https://github.com/Deepanshu2017/AlligatorOrCrocodile
