@@ -7,7 +7,7 @@ from io import BytesIO
 from fastai.vision import *
 import base64
 
-model_file_url = 'https://github.com/YiweiMao/cnn-app/blob/master/app/models/stage-2.pth'
+model_file_url = 'https://github.com/YiweiMao/pulsar-blackhole-classifier/blob/master/models/stage-2.pth'
 model_file_name = 'stage-2'
 classes = ['pulsar','blackhole']
 
@@ -41,7 +41,7 @@ PREDICTION_FILE_SRC = path/'static'/'predictions.txt'
 @app.route("/upload", methods=["POST"])
 async def upload(request):
     data = await request.form()
-    img_bytes = await (data["img"].read())
+    img_bytes = await (data["img"])#.read())
     bytes = base64.b64decode(img_bytes)
     return predict_from_bytes(bytes)
 
@@ -52,7 +52,7 @@ def predict_from_bytes(bytes):
     result_html1 = path/'static'/'result1.html'
     result_html2 = path/'static'/'result2.html'
     
-    result_html = str(result_html1.open().read() +str(predictions[0]) + result_html2.open().read())
+    result_html = str(result_html1.open().read() + str(predictions[0]) + result_html2.open().read())
     return HTMLResponse(result_html)
 
 @app.route("/")
