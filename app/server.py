@@ -1,112 +1,64 @@
-#! usr/bin/env python3
-
-# slightly modified from 
-# https://github.com/Deepanshu2017/AlligatorOrCrocodile
-
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse, HTMLResponse, RedirectResponse
-from fastai.vision import (
-    ImageDataBunch,
-    create_cnn,
-    open_image,
-    imagenet_stats,
-    get_transforms,
-    models,
-)
-import torch
-from pathlib import Path
+from starlette.responses import HTMLResponse
+from starlette.staticfiles import StaticFiles
+from starlette.middleware.cors import CORSMiddleware
+import uvicorn, aiohttp, asyncio
 from io import BytesIO
-import sys
-import uvicorn
-import aiohttp
-import asyncio
+from fastai.vision import *
+import base64
 
+model_file_url = 'https://github.com/YiweiMao/cnn-app/blob/master/app/models/stage-2.pth'
+model_file_name = 'stage-2.pth'
+classes = ['pulsar','blackhole']
 
-async def get_bytes(url):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            return await response.read()
-
+path = Path(__file__).parent
 
 app = Starlette()
+app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_headers=['X-Requested-With', 'Content-Type'])
+app.mount('/static', StaticFiles(directory='app/static'))
 
-# You path where you have stored models/weights.pth
-path = Path("")
+async def download_file(url, dest):
+    if dest.exists(): return
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            data = await response.read()
+            with open(dest, 'wb') as f: f.write(data)
 
-# Classes
-classes = ["pulsar", "blackhole"]
+async def setup_learner():
+    await download_file(model_file_url, path/'models'/f'{model_file_name}.pth')
+    data_bunch = ImageDataBunch.single_from_classes(path, classes, tfms=get_transforms(), size=150).normalize(imagenet_stats)
+    learn = create_cnn(data_bunch, models.resnet34, pretrained=False)
+    learn.load(model_file_name)
+    return learn
 
-# Create a DataBunch
-data = ImageDataBunch.single_from_classes(
-    path,
-    classes,
-    size=224,
-).normalize(imagenet_stats)
+loop = asyncio.get_event_loop()
+tasks = [asyncio.ensure_future(setup_learner())]
+learn = loop.run_until_complete(asyncio.gather(*tasks))[0]
+loop.close()
 
-# Create a learner and load the weights
-learn = create_cnn(data, models.resnet34)
-learn.load("stage-2")
-
+PREDICTION_FILE_SRC = path/'static'/'predictions.txt'
 
 @app.route("/upload", methods=["POST"])
 async def upload(request):
     data = await request.form()
-    bytes = await (data["file"].read())
-    return predict_image_from_bytes(bytes)
+    img_bytes = await (data["img"].read())
+    bytes = base64.b64decode(img_bytes)
+    return predict_from_bytes(bytes)
 
-
-@app.route("/classify-url", methods=["GET"])
-async def classify_url(request):
-    bytes = await get_bytes(request.query_params["url"])
-    return predict_image_from_bytes(bytes)
-
-
-def predict_image_from_bytes(bytes):
-    """
-        Predict function which will be called by either classify_url or by upload
-        and return the True class as well as the scores. 
-        Note: scores are not probabilites, and we may use activation like Softmax
-              or sigmoid to convert these scores into probabilities.
-    """
+def predict_from_bytes(bytes):
     img = open_image(BytesIO(bytes))
-    class_,predictions, losses = learn.predict(img)
-    return JSONResponse({
-        "class": class_,
-        "scores": sorted(
-            zip(learn.data.classes, map(float, losses)),
-            key=lambda p: p[1],
-            reverse=True
-        )
-    })
-
+    _,_,losses = learn.predict(img)
+    predictions = sorted(zip(classes, map(float, losses)), key=lambda p: p[1], reverse=True)
+    result_html1 = path/'static'/'result1.html'
+    result_html2 = path/'static'/'result2.html'
+    
+    result_html = str(result_html1.open().read() +str(predictions[0:3]) + result_html2.open().read())
+    return HTMLResponse(result_html)
 
 @app.route("/")
 def form(request):
-    return HTMLResponse(
-        """
-        <h3>This app will classify pulsars vs blackholes<h3>
-        <h4>Note: I created this app with total on 200 images so it you may need to provide good quality images"<h4>
-        <form action="/upload" method="post" enctype="multipart/form-data">
-            Select image to upload:
-            <input type="file" name="file">
-            <input type="submit" value="Upload Image">
-        </form>
-        Or submit a URL:
-        <form action="/classify-url" method="get">
-            <input type="url" name="url">
-            <input type="submit" value="Fetch and analyze image">
-        </form>
-    """)
-
-
-@app.route("/form")
-def redirect_to_homepage(request):
-    return RedirectResponse("/")
-
+    index_html = path/'static'/'index.html'
+    return HTMLResponse(index_html.open().read())
 
 if __name__ == "__main__":
-    # To run this app start application on server with python
-    # python FILENAME serve
-    # ex: python server.py server
-    if "serve" in sys.argv:
-        uvicorn.run(app, host="0.0.0.0", port=8082)
+    if "serve" in sys.argv: uvicorn.run(app, host="0.0.0.0", port=8080)
