@@ -7,10 +7,12 @@ ADD requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app app/
+COPY . .
 
-RUN python app/server.py
+WORKDIR .
+
+RUN python server.py
 
 EXPOSE 8080
 
-CMD ["python", "app/server.py", "serve"]
+CMD ["python", "server.py", "serve"]

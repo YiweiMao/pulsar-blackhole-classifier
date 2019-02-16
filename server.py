@@ -8,14 +8,14 @@ from fastai.vision import *
 import base64
 
 model_file_url = 'https://github.com/YiweiMao/cnn-app/blob/master/app/models/stage-2.pth'
-model_file_name = 'stage-2.pth'
+model_file_name = 'stage-2'
 classes = ['pulsar','blackhole']
 
-path = Path(__file__).parent
+path = Path("")
 
 app = Starlette()
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_headers=['X-Requested-With', 'Content-Type'])
-app.mount('/static', StaticFiles(directory='app/static'))
+app.mount('/static', StaticFiles(directory='static'))
 
 async def download_file(url, dest):
     if dest.exists(): return
@@ -26,7 +26,7 @@ async def download_file(url, dest):
 
 async def setup_learner():
     await download_file(model_file_url, path/'models'/f'{model_file_name}.pth')
-    data_bunch = ImageDataBunch.single_from_classes(path, classes, tfms=get_transforms(), size=150).normalize(imagenet_stats)
+    data_bunch = ImageDataBunch.single_from_classes(path, classes, size=150).normalize(imagenet_stats)
     learn = create_cnn(data_bunch, models.resnet34, pretrained=False)
     learn.load(model_file_name)
     return learn
